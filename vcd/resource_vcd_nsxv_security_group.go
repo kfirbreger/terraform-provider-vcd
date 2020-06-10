@@ -2,7 +2,7 @@ package vcd
 
 import (
 	"fmt"
-
+    "log"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	//"github.com/vmware/go-vcloud-director/v2/govcd"
 	"github.com/vmware/go-vcloud-director/v2/types/v56"
@@ -132,23 +132,38 @@ func resourceVcdNetworkSecurityGroup() *schema.Resource {
 }
 
 func resourceVcdNsxvSecurityGroupCreate(d *schema.ResourceData, meta interface{}) error {
+    log.Printf("[DEBUG] Creating security group with name %s", d.Get("name"))
 	vcdClient := meta.(*VCDClient)
 
+    _, vdc, err := vcdClient.GetOrgAndVdcFromResource(d)
+	if err != nil {
+		return fmt.Errorf(errorRetrievingOrgAndVdc, err)
+	}
 	// Getting members
-	sg_member := d.Get("member").(*schema.Set)
-	sgm := append([]*types.SecurityGroupMember{}, sgMemberSchemaToVDC(sg_member, false)...)
+	sgMember := d.Get("member").(*schema.Set)
+	sgm := append([]*types.SecurityGroupMember{}, sgMemberSchemaToVDC(sgMember, false)...)
+    
+    // Getting members list
+	sgMemberSet := d.Get("member_set").(*schema.Set)
+	sgm = append(sgm, sgMemberSchemaToVDC(sgMemberSet, true)...)
+
 
 	// Create the security group
 	sg := types.SecurityGroup{
 		Name:        d.Get("name").(string),
 		Description: d.Get("description").(string),
+        Member: sgm,
 	}
 	// Adding excluding
 	var sgem []*types.SecurityGroupMember
-	_, vcd, err := vcdClient.GetOrgAndVdcFromResource(d)
-	if err != nil {
-		return fmt.Errorf(errorRetrievingOrgAndVdc, err)
-	}
+	
+    createdSecGroup, err := vdc.CreateNsxvSecurityGroup(&sg)
+    if err != nil {
+        return fmt.Errorf("error creating new security group: %s", err)
+    }
+
+    log.Printf("[DEBUG] Security group with name %s created. Id: %s", createdSecGroup.Name, createdSecGroup.ID)
+    d.SetId(createdSecGroup.ID)
 	return nil
 }
 
@@ -158,7 +173,7 @@ func sgMemberSchemaToVDC(ml *schema.Set, isSet bool) []*types.SecurityGroupMembe
 
 	// Looping over the schemas in the set
 	for _, entry := range ml.List() {
-		// converting the schema to a map. Both with have a type
+		// converting the schema to a map. Both will have a type
 		// And the id is either singular or a set
 		data := entry.(map[string]interface{})
 		sgType := data["type"].(string)
@@ -186,7 +201,7 @@ func createSgMember(memberId string, member_type string) *types.SecurityGroupMem
 	}
 	// Returning a security group
 	return &types.SecurityGroupMember{
-		ObjectId: memberId,
+		ID: memberId,
 		Type:     sgt,
 	}
 }
