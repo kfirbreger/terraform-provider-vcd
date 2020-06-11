@@ -11,7 +11,7 @@ import (
 func resourceVcdNetworkSecurityGroup() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceVcdNsxvSecurityGroupCreate,
-		//Read: resourceVcdNsxvSecurityGroupRead,
+		Read: resourceVcdNsxvSecurityGroupRead,
 		//Update: resourceVcdNsxvSecurityGroupUpdate,
 		//Delete: resourceVceNsxvSecurityGroupDelete,
 		/*Importer: &schema.ResourceImporter{
@@ -44,25 +44,6 @@ func resourceVcdNetworkSecurityGroup() *schema.Resource {
 					},
 				},
 			},
-			"member_set": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"member_ids": {
-							Type:     schema.TypeSet,
-							Required: true,
-							Elem: &schema.Schema{
-								Type: schema.TypeString,
-							},
-						},
-						"type": {
-							Type:     schema.TypeString,
-							Required: true,
-						},
-					},
-				},
-			},
 			"exclude_memeber": {
 				Type:     schema.TypeSet,
 				Optional: true,
@@ -71,25 +52,6 @@ func resourceVcdNetworkSecurityGroup() *schema.Resource {
 						"member_id": {
 							Type:     schema.TypeString,
 							Required: true,
-						},
-						"type": {
-							Type:     schema.TypeString,
-							Required: true,
-						},
-					},
-				},
-			},
-			"exclude_memeber_set": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"member_ids": {
-							Type:     schema.TypeSet,
-							Required: true,
-							Elem: &schema.Schema{
-								Type: schema.TypeString,
-							},
 						},
 						"type": {
 							Type:     schema.TypeString,
@@ -141,13 +103,8 @@ func resourceVcdNsxvSecurityGroupCreate(d *schema.ResourceData, meta interface{}
 	}
 	// Getting members
 	sgMember := d.Get("member").(*schema.Set)
-	sgm := append([]*types.SecurityGroupMember{}, sgMemberSchemaToVDC(sgMember, false)...)
+	sgm := append([]*types.SecurityGroupMember{}, sgMemberSchemaToVDC(sgMember)...)
     
-    // Getting members list
-	sgMemberSet := d.Get("member_set").(*schema.Set)
-	sgm = append(sgm, sgMemberSchemaToVDC(sgMemberSet, true)...)
-
-
 	// Create the security group
 	sg := types.SecurityGroup{
 		Name:        d.Get("name").(string),
@@ -167,8 +124,58 @@ func resourceVcdNsxvSecurityGroupCreate(d *schema.ResourceData, meta interface{}
 	return nil
 }
 
+func genericVcdNsxvSecurityGroupRead(d * schema.ResourceData, meta interface{}, origin string) error {
+    log.Printf("[DEBUG] Reading Security Group with ID %s", d.Id())
+    vcdClient := meta.(*VCDClient)
+
+    _, vdc, err := vcdClient.GetOrgAndVdcFromResource(d)
+    if err != nil {
+        return fmt.Errorf(errorRetrievingOrgAndVdc, err)
+    }
+
+    var secGroup *types.SecurityGroup
+
+    if origin == "datasource" {
+        secGroup, err = vdc.GetNsxvSecurityGroupByName(d.Get("name").(string))
+    } else {
+        secGroup, err = vdc.GetNsxvSecurityGroupById(d.Id())
+    }
+
+    if govcd.IsNotFound(err) && origin == "resource" {
+        log.Printf("[INFO] unable to find security group with ID %s: %s. Removing from state", d.Id(), err)
+        d.SetId("")
+        return nil
+    }
+
+    if err != nil {
+        return fmt.Errorf("unable to find security group with ID %s: %s", d.Id(), err)
+    }
+
+    // Persisting to file
+    err = setSecurityGroupDate(d, secGroup, vdc, origin)
+    if err != nil {
+        return fmt.Errorf("unable to store data in statefile: %s", err)
+    }
+
+    if origin == "datasource" {
+        d.SetId(secGroup.ID)
+    }
+
+    log.Printf("[DEBUG] Read security group with ID %s", d.Id())
+    return nil
+}
+
+func setSecurityGroupData(d *schema.ResourceData, secGroup *types.SecurityGroup, vdc * govcd.Vdc, origin string) error {
+    if origin == "resource" {
+        d.Set("name", secGroup.Name)
+    }
+
+    d.Set("description", secGroup.Description)
+
+    Convert all the members
+
 // Convert a list of members from TF schema to VDC
-func sgMemberSchemaToVDC(ml *schema.Set, isSet bool) []*types.SecurityGroupMember {
+func sgMemberSchemaToVDC(ml *schema.Set) []*types.SecurityGroupMember {
 	sgm := []*types.SecurityGroupMember{}
 
 	// Looping over the schemas in the set
@@ -176,18 +183,7 @@ func sgMemberSchemaToVDC(ml *schema.Set, isSet bool) []*types.SecurityGroupMembe
 		// converting the schema to a map. Both will have a type
 		// And the id is either singular or a set
 		data := entry.(map[string]interface{})
-		sgType := data["type"].(string)
-		// Checking if this is a set
-		if isSet {
-			idsSet := data["member_ids"].([][]string)
-			for _, idSet := range idsSet {
-				for _, memberId := range idSet {
-					sgm = append(sgm, createSgMember(memberId, sgType))
-				}
-			}
-		} else {
-			sgm = append(sgm, createSgMember(data["member_id"].(string), sgType))
-		}
+        sgm = append(sgm, createSgMember(data["member_id"].(string), data["type"].(string)))
 	}
 
 	return sgm
