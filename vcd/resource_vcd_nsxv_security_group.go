@@ -214,6 +214,7 @@ func setSecurityGroupData(d *schema.ResourceData, secGroup *types.SecurityGroup,
     if origin == "resource" {
         if err = d.Set("name", secGroup.Name); err != nil {
             return fmt.Errorf("[ERROR] failed setting %s as name for security group: %s", secGroup.Name, err)
+        }
     }
 
     if err = d.Set("description", secGroup.Description); err != nil {
