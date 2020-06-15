@@ -4,7 +4,7 @@ import (
 	"fmt"
     "log"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	//"github.com/vmware/go-vcloud-director/v2/govcd"
+	"github.com/vmware/go-vcloud-director/v2/govcd"
 	"github.com/vmware/go-vcloud-director/v2/types/v56"
 )
 
@@ -12,7 +12,7 @@ func resourceVcdNetworkSecurityGroup() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceVcdNsxvSecurityGroupCreate,
 		Read: resourceVcdNsxvSecurityGroupRead,
-		//Update: resourceVcdNsxvSecurityGroupUpdate,
+		Update: resourceVcdNsxvSecurityGroupUpdate,
 		//Delete: resourceVceNsxvSecurityGroupDelete,
 		/*Importer: &schema.ResourceImporter{
 		    State: resourceVcdNetworkSecurityGroup,
@@ -112,8 +112,9 @@ func resourceVcdNsxvSecurityGroupCreate(d *schema.ResourceData, meta interface{}
         Member: sgm,
 	}
 	// Adding excluding
-	var sgem []*types.SecurityGroupMember
-	
+    sgExcludeMember := d.Get("exclude_member").(*schema.Set)
+	sgem := append([]*types.SecurityGroupMember{}, sgMemberSchemaToVDC(sgExcludeMember)...)
+
     createdSecGroup, err := vdc.CreateNsxvSecurityGroup(&sg)
     if err != nil {
         return fmt.Errorf("error creating new security group: %s", err)
@@ -122,6 +123,49 @@ func resourceVcdNsxvSecurityGroupCreate(d *schema.ResourceData, meta interface{}
     log.Printf("[DEBUG] Security group with name %s created. Id: %s", createdSecGroup.Name, createdSecGroup.ID)
     d.SetId(createdSecGroup.ID)
 	return nil
+}
+
+func resourceVcdNsxvSecurityGroupUpdate(d *schema.ResourceData, meta interface{}) error {
+    log.Printf("[DEBUG] updating security group with ID %s", d.Id())
+
+    vcdClient := meta.(*VCDClient)
+
+    _, vdc, err := vcdClient.GetOrgAndVdcFromResource(d)
+    if err != nil {
+        return fmt.Errorf(errorRetrievingOrgAndVdc, err)
+    }
+
+    secGroup, err := getSecGroup(d, vdc)
+    if err != nil {
+        return fmt.Errorf("upable to make security group query: %s", err)
+    }
+    secGroup.ID = d.Id()
+
+    // updating
+    // first the sec group info and then the membership information
+    _, err = vdc.UpdateNsxvSecurityGroupInfo(secGroup)
+    if err != nil {
+        return fmt.Errorf("error updating info of security group with ID %s: %s", d.Id(), err)
+    } else {
+        log.Printf("[DEBUG] updated security group info. Now updating membership for security group with id: %s", d.Id())
+    }
+    if d.HasChange("member") || d.HasChange("exclude_member") {
+        _, err = vdc.UpdateNsxvSecurityGroupMembership(secGroup)
+        if err != nil {
+            return fmt.Errorf("error updating memberships for security group with ID %s: %s", d.Id(), err)
+        }
+    }
+
+    log.Printf("[DEBUG] updated security group with ID %s", d.Id())
+    return resourceVcdNsxvSecurityGroupRead(d, meta)
+}
+
+func datasourceNsxvSecurityGroupRead(d *schema.ResourceData, meta interface{}) error {
+    return genericVcdNsxvSecurityGroupRead(d, meta, "datasource")
+}
+
+func resourceVcdNsxvSecurityGroupRead(d *schema.ResourceData, meta interface{}) error {
+    return genericVcdNsxvSecurityGroupRead(d, meta, "resource")
 }
 
 func genericVcdNsxvSecurityGroupRead(d * schema.ResourceData, meta interface{}, origin string) error {
@@ -152,7 +196,7 @@ func genericVcdNsxvSecurityGroupRead(d * schema.ResourceData, meta interface{}, 
     }
 
     // Persisting to file
-    err = setSecurityGroupDate(d, secGroup, vdc, origin)
+    err = setSecurityGroupData(d, secGroup, vdc, origin)
     if err != nil {
         return fmt.Errorf("unable to store data in statefile: %s", err)
     }
@@ -166,13 +210,38 @@ func genericVcdNsxvSecurityGroupRead(d * schema.ResourceData, meta interface{}, 
 }
 
 func setSecurityGroupData(d *schema.ResourceData, secGroup *types.SecurityGroup, vdc * govcd.Vdc, origin string) error {
+    var err error
     if origin == "resource" {
-        d.Set("name", secGroup.Name)
+        if err = d.Set("name", secGroup.Name); err != nil {
+            return fmt.Errorf("[ERROR] failed setting %s as name for security group: %s", secGroup.Name, err)
     }
 
-    d.Set("description", secGroup.Description)
+    if err = d.Set("description", secGroup.Description); err != nil {
+        return fmt.Errorf("[ERROR] failed setting description for security group: %s", err)
+    }
 
-    Convert all the members
+    if err = d.Set("member", flattenMembersSet(secGroup.Member)); err != nil {
+        return fmt.Errorf("[ERROR] failed to set members set: %s", err)
+    }
+
+    if err = d.Set("exclude_member", flattenMembersSet(secGroup.ExcludeMember)); err != nil {
+        return fmt.Errorf("[ERROR] failed to set exclude members set: %s", err)
+    }
+    return nil
+}
+
+func flattenMembersSet(secGroupMemberList []*types.SecurityGroupMember) []*map[string]interface{} {
+    // Creating the slice
+    sgMemberSlice := []*map[string]interface{}{}
+    for _, sgMember := range secGroupMemberList {
+        member := &map[string]interface{}{
+            "Name": sgMember.ID,
+            "Type": sgMember.Type.TypeName,
+        }
+        sgMemberSlice = append(sgMemberSlice, member)
+    }
+    return sgMemberSlice
+}
 
 // Convert a list of members from TF schema to VDC
 func sgMemberSchemaToVDC(ml *schema.Set) []*types.SecurityGroupMember {
