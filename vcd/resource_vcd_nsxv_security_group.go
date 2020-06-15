@@ -13,7 +13,7 @@ func resourceVcdNetworkSecurityGroup() *schema.Resource {
 		Create: resourceVcdNsxvSecurityGroupCreate,
 		Read: resourceVcdNsxvSecurityGroupRead,
 		Update: resourceVcdNsxvSecurityGroupUpdate,
-		//Delete: resourceVceNsxvSecurityGroupDelete,
+		Delete: resourceVceNsxvSecurityGroupDelete,
 		/*Importer: &schema.ResourceImporter{
 		    State: resourceVcdNetworkSecurityGroup,
 		},*/
@@ -102,20 +102,12 @@ func resourceVcdNsxvSecurityGroupCreate(d *schema.ResourceData, meta interface{}
 		return fmt.Errorf(errorRetrievingOrgAndVdc, err)
 	}
 	// Getting members
-	sgMember := d.Get("member").(*schema.Set)
-	sgm := append([]*types.SecurityGroupMember{}, expandSecurityGroupMembers(sgMember)...)
-    
-	// Create the security group
-	sg := types.SecurityGroup{
-		Name:        d.Get("name").(string),
-		Description: d.Get("description").(string),
-        Member: sgm,
-	}
-	// Adding excluding
-    sgExcludeMember := d.Get("exclude_member").(*schema.Set)
-	sgem := append([]*types.SecurityGroupMember{}, expandSecurityGroupMembers(sgExcludeMember)...)
+    sg, err := getSecGroup(d, vdc)
+    if err != nil {
+        return fmt.Errorf("[ERROR] failed to convert TF resource to a security group")
+    }
 
-    createdSecGroup, err := vdc.CreateNsxvSecurityGroup(&sg)
+	createdSecGroup, err := vdc.CreateNsxvSecurityGroup(sg)
     if err != nil {
         return fmt.Errorf("error creating new security group: %s", err)
     }
@@ -168,6 +160,24 @@ func resourceVcdNsxvSecurityGroupRead(d *schema.ResourceData, meta interface{}) 
     return genericVcdNsxvSecurityGroupRead(d, meta, "resource")
 }
 
+func resourceVceNsxvSecurityGroupDelete(d *schema.ResourceData, meta interface{}) error {
+    log.Printf("[DEBUG] Deleting security group with ID %s", d.Id())
+    vcdClient := meta.(*VCDClient)
+
+    _, vdc, err := vcdClient.GetOrgAndVdcFromResource(d)
+    if err != nil {
+        return fmt.Errorf(errorRetrievingOrgAndVdc, err)
+    }
+
+    if err = vdc.DeleteNsxvSecurityGroupById(d.Id()); err != nil {
+        return fmt.Errorf("[ERROR] error deleting security group with id %s: %s", d.Id(), err)
+    }
+
+    log.Printf("[DEBOG] Deleted security group with ID %s", d.Id())
+    d.SetId("")
+    return nil
+}
+
 func genericVcdNsxvSecurityGroupRead(d * schema.ResourceData, meta interface{}, origin string) error {
     log.Printf("[DEBUG] Reading Security Group with ID %s", d.Id())
     vcdClient := meta.(*VCDClient)
@@ -207,6 +217,28 @@ func genericVcdNsxvSecurityGroupRead(d * schema.ResourceData, meta interface{}, 
 
     log.Printf("[DEBUG] Read security group with ID %s", d.Id())
     return nil
+}
+
+func getSecGroup(d *schema.ResourceData, vdc *govcd.Vdc) (*types.SecurityGroup, error) {
+    // @TODO add error control
+    // Creating members
+    sgMember := d.Get("member").(*schema.Set)
+	sgm := append([]*types.SecurityGroupMember{}, expandSecurityGroupMembers(sgMember)...)
+    
+    // Adding excluding
+    sgExcludeMember := d.Get("exclude_member").(*schema.Set)
+	sgem := append([]*types.SecurityGroupMember{}, expandSecurityGroupMembers(sgExcludeMember)...)
+
+
+	// Create the security group
+	sg := types.SecurityGroup{
+		Name:        d.Get("name").(string),
+		Description: d.Get("description").(string),
+        Member: sgm,
+        ExcludeMember: sgem,
+	}
+
+    return &sg, nil
 }
 
 func setSecurityGroupData(d *schema.ResourceData, secGroup *types.SecurityGroup, vdc * govcd.Vdc, origin string) error {
