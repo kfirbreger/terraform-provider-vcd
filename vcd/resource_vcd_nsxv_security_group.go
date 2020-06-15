@@ -103,7 +103,7 @@ func resourceVcdNsxvSecurityGroupCreate(d *schema.ResourceData, meta interface{}
 	}
 	// Getting members
 	sgMember := d.Get("member").(*schema.Set)
-	sgm := append([]*types.SecurityGroupMember{}, sgMemberSchemaToVDC(sgMember)...)
+	sgm := append([]*types.SecurityGroupMember{}, expandSecurityGroupMembers(sgMember)...)
     
 	// Create the security group
 	sg := types.SecurityGroup{
@@ -113,7 +113,7 @@ func resourceVcdNsxvSecurityGroupCreate(d *schema.ResourceData, meta interface{}
 	}
 	// Adding excluding
     sgExcludeMember := d.Get("exclude_member").(*schema.Set)
-	sgem := append([]*types.SecurityGroupMember{}, sgMemberSchemaToVDC(sgExcludeMember)...)
+	sgem := append([]*types.SecurityGroupMember{}, expandSecurityGroupMembers(sgExcludeMember)...)
 
     createdSecGroup, err := vdc.CreateNsxvSecurityGroup(&sg)
     if err != nil {
@@ -245,7 +245,7 @@ func flattenMembersSet(secGroupMemberList []*types.SecurityGroupMember) []*map[s
 }
 
 // Convert a list of members from TF schema to VDC
-func sgMemberSchemaToVDC(ml *schema.Set) []*types.SecurityGroupMember {
+func expandSecurityGroupMembers(ml *schema.Set) []*types.SecurityGroupMember {
 	sgm := []*types.SecurityGroupMember{}
 
 	// Looping over the schemas in the set
