@@ -18,6 +18,19 @@ func resourceVcdNsxvDistributedFirewallRule() *schema.Resource {
 		Update: resourceVcdDistributedFirewallRuleUpdate,
 
 		Schema: map[string]*schema.Schema{
+			"org": {
+				Type:     schema.TypeString,
+				Optional: true,
+				ForceNew: true,
+				Description: "The name of organization to use, optional if defined at provider " +
+					"level. Useful when connected as sysadmin working across different organizations",
+			},
+			"vdc": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				ForceNew:    true,
+				Description: "The name of VDC to use, optional if defined at provider level",
+			},
 			"name": {
 				Type:     schema.TypeString,
 				Required: true,
@@ -82,6 +95,7 @@ func resourceVcdNsxvDistributedFirewallRule() *schema.Resource {
 					},
 				},
 			},
+			// FIXME: rename to plural services
 			"service": { //TODO: Add validation that either group_name or protocol has been set.
 				Type:     schema.TypeSet,
 				Optional: true,
@@ -132,7 +146,7 @@ func resourceVcdDistributedFirewallRuleCreate(d *schema.ResourceData, meta inter
 	}
 
 	d.SetId(createdDfwRule.ID)
-	return resourceVcdNsxvFirewallRuleRead(d, meta)
+	return resourceVcdDistributedFirewallRuleRead(d, meta)
 }
 
 // resourceVcdDistributedFirewallRuleRead Read distributed firewall state from api and update terraform data
@@ -232,8 +246,8 @@ func getDistributedFirewallRuleData(d *schema.ResourceData, vdc *govcd.Vdc) (*ty
 	dfwRule.PacketType = "any"
 	dfwRule.Direction = d.Get("direction").(string)
 
-	dfwRule.Sources.Excluded = d.Get("source_exclude").(bool)
 	if sources, ok := d.GetOk("sources"); ok {
+		dfwRule.Sources = new(types.DistributedFirewallRuleSource)
 		for _, source := range sources.(*schema.Set).List() {
 			data := source.(map[string]interface{})
 			newDfwSubject := new(types.DistributedFirewallRuleSubject)
@@ -242,10 +256,11 @@ func getDistributedFirewallRuleData(d *schema.ResourceData, vdc *govcd.Vdc) (*ty
 			newDfwSubject.Value = data["value"].(string)
 			dfwRule.Sources.Source = append(dfwRule.Sources.Source, newDfwSubject)
 		}
+		dfwRule.Sources.Excluded = d.Get("source_exclude").(bool)
 	}
 
-	dfwRule.Destinations.Excluded = d.Get("destination_exclude").(bool)
 	if destinations, ok := d.GetOk("destinations"); ok {
+		dfwRule.Destinations = new(types.DistributedFirewallRuleDestination)
 		for _, destination := range destinations.(*schema.Set).List() {
 			data := destination.(map[string]interface{})
 			newDfwSubject := new(types.DistributedFirewallRuleSubject)
@@ -254,9 +269,11 @@ func getDistributedFirewallRuleData(d *schema.ResourceData, vdc *govcd.Vdc) (*ty
 			newDfwSubject.Value = data["value"].(string)
 			dfwRule.Destinations.Destination = append(dfwRule.Destinations.Destination, newDfwSubject)
 		}
+		dfwRule.Destinations.Excluded = d.Get("destination_exclude").(bool)
 	}
 
 	if services, ok := d.GetOk("service"); ok {
+		dfwRule.Services = new(types.DistributedFirewallRuleServices)
 		for _, service := range services.(*schema.Set).List() {
 			data := service.(map[string]interface{})
 			newDfwService := new(types.DistributedFirewallRuleService)
