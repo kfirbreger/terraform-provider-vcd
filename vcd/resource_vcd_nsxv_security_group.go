@@ -222,20 +222,20 @@ func genericVcdNsxvSecurityGroupRead(d *schema.ResourceData, meta interface{}, o
 
 func getSecGroup(d *schema.ResourceData, vdc *govcd.Vdc) (*types.SecurityGroup, error) {
 	// @TODO add error control
-	// Creating members
-	sgMember := d.Get("member").(*schema.Set)
-	sgm := append([]*types.SecurityGroupMember{}, expandSecurityGroupMembers(sgMember)...)
-
-	// Adding excluding
-	sgExcludeMember := d.Get("exclude_member").(*schema.Set)
-	sgem := append([]*types.SecurityGroupMember{}, expandSecurityGroupMembers(sgExcludeMember)...)
-
 	// Create the security group
 	sg := types.SecurityGroup{
 		Name:          d.Get("name").(string),
 		Description:   d.Get("description").(string),
 		Member:        sgm,
 		ExcludeMember: sgem,
+	}
+	// Creating members
+	if sgMember, ok := d.GetOk("member").(*schema.Set); ok {
+		sg.Member = expandSecurityGroupMembers(sgMember.(*schema.Set))
+	}
+	// Adding excluding
+	if sgExcludeMember, ok := d.GetOk("exclude_member").(*schema.Set); ok {
+		sg.ExcludeMember = expandSecurityGroupMembers(sgExcludeMember.(*schema.Set))
 	}
 
 	return &sg, nil
