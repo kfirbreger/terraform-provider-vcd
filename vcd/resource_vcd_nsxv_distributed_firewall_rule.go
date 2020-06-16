@@ -10,7 +10,7 @@ import (
 	"github.com/vmware/go-vcloud-director/v2/types/v56"
 )
 
-func resourceVcdDistributedFirewallRule() *schema.Resource {
+func resourceVcdNsxvDistributedFirewallRule() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceVcdDistributedFirewallRuleCreate,
 		Read:   resourceVcdDistributedFirewallRuleRead,
