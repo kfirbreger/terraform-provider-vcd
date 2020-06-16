@@ -224,17 +224,15 @@ func getSecGroup(d *schema.ResourceData, vdc *govcd.Vdc) (*types.SecurityGroup, 
 	// @TODO add error control
 	// Create the security group
 	sg := types.SecurityGroup{
-		Name:          d.Get("name").(string),
-		Description:   d.Get("description").(string),
-		Member:        sgm,
-		ExcludeMember: sgem,
+		Name:        d.Get("name").(string),
+		Description: d.Get("description").(string),
 	}
 	// Creating members
-	if sgMember, ok := d.GetOk("member").(*schema.Set); ok {
+	if sgMember, ok := d.GetOk("member"); ok {
 		sg.Member = expandSecurityGroupMembers(sgMember.(*schema.Set))
 	}
 	// Adding excluding
-	if sgExcludeMember, ok := d.GetOk("exclude_member").(*schema.Set); ok {
+	if sgExcludeMember, ok := d.GetOk("exclude_member"); ok {
 		sg.ExcludeMember = expandSecurityGroupMembers(sgExcludeMember.(*schema.Set))
 	}
 
