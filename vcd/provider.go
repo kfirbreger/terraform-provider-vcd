@@ -88,6 +88,7 @@ var globalResourceMap = map[string]*schema.Resource{
 	"vcd_vm_internal_disk":               resourceVmInternalDisk(),                 // 2.7
 	"vcd_vapp_org_network":               resourceVcdVappOrgNetwork(),              // 2.7
 	"vcd_nsxv_distributed_firewall_rule": resourceVcdNsxvDistributedFirewallRule(), // KPN-IoT
+	"vcd_nsxv_security_group":            resourceVcdNsxvSecurityGroup(),           // KPN-IoT
 }
 
 // Provider returns a terraform.ResourceProvider.

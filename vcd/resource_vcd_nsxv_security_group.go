@@ -2,13 +2,14 @@ package vcd
 
 import (
 	"fmt"
+	"log"
+
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/vmware/go-vcloud-director/v2/govcd"
 	"github.com/vmware/go-vcloud-director/v2/types/v56"
-	"log"
 )
 
-func resourceVcdNetworkSecurityGroup() *schema.Resource {
+func resourceVcdNsxvSecurityGroup() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceVcdNsxvSecurityGroupCreate,
 		Read:   resourceVcdNsxvSecurityGroupRead,
