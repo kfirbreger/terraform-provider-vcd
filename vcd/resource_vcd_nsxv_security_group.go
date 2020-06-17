@@ -285,9 +285,9 @@ func flattenMembersSet(secGroupMemberList []*types.SecurityGroupMember) []map[st
 	for _, sgMember := range secGroupMemberList {
 		log.Printf("[ERROR] sgMember: %s - %s", sgMember.ID, sgMember.Type.TypeName)
 		sgMemberSlice = append(sgMemberSlice, map[string]string{
-            "Name": sgMember.ID, 
-            "type": sgMember.Type.TypeName
-        })
+			"Name": sgMember.ID,
+			"type": sgMember.Type.TypeName,
+		})
 	}
 	return sgMemberSlice
 }
