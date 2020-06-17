@@ -264,25 +264,27 @@ func setSecurityGroupData(d *schema.ResourceData, secGroup *types.SecurityGroup,
 		return fmt.Errorf("[ERROR] failed setting description for security group: %s", err)
 	}
 
-	if err = d.Set("member", flattenMembersSet(secGroup.Member)); err != nil {
-		return fmt.Errorf("[ERROR] failed to set members set: %s", err)
+	if secGroup.Member != nil {
+		if err = d.Set("member", flattenMembersSet(secGroup.Member)); err != nil {
+			return fmt.Errorf("[ERROR] failed to set members set: %s", err)
+		}
 	}
 
-	if err = d.Set("exclude_member", flattenMembersSet(secGroup.ExcludeMember)); err != nil {
-		return fmt.Errorf("[ERROR] failed to set exclude members set: %s", err)
+	if secGroup.ExcludeMember != nil {
+		if err = d.Set("exclude_member", flattenMembersSet(secGroup.ExcludeMember)); err != nil {
+			return fmt.Errorf("[ERROR] failed to set exclude members set: %s", err)
+		}
 	}
 	return nil
 }
 
-func flattenMembersSet(secGroupMemberList []*types.SecurityGroupMember) []*map[string]interface{} {
+func flattenMembersSet(secGroupMemberList []*types.SecurityGroupMember) []map[string]string {
+	log.Printf("[ERROR] flattenMemberSet")
 	// Creating the slice
-	sgMemberSlice := []*map[string]interface{}{}
+	var sgMemberSlice []map[string]string
 	for _, sgMember := range secGroupMemberList {
-		member := &map[string]interface{}{
-			"Name": sgMember.ID,
-			"Type": sgMember.Type.TypeName,
-		}
-		sgMemberSlice = append(sgMemberSlice, member)
+		log.Printf("[ERROR] sgMember: %s - %s", sgMember.ID, sgMember.Type.TypeName)
+		sgMemberSlice = append(sgMemberSlice, map[string]string{"Name": sgMember.ID, "type": sgMember.Type.TypeName})
 	}
 	return sgMemberSlice
 }
