@@ -311,28 +311,34 @@ func setDistributedFirewallRuleData(d *schema.ResourceData, dfwRule *types.Distr
 	_ = d.Set("section", dfwSection.Type)
 	_ = d.Set("action", dfwRule.Action)
 	_ = d.Set("disabled", dfwRule.Disabled)
-	_ = d.Set("source_exclude", dfwRule.Sources.Excluded)
-	_ = d.Set("destination_exclude", dfwRule.Destinations.Excluded)
 	_ = d.Set("direction", dfwRule.Direction)
 
-	var sources []map[string]string
-	for _, source := range dfwRule.Sources.Source {
-		sources = append(sources, map[string]string{"value": source.Value, "type": source.Type})
-	}
-	d.Set("sources", sources)
-
-	var destinations []map[string]string
-	for _, destination := range dfwRule.Destinations.Destination {
-		destinations = append(destinations, map[string]string{"value": destination.Value, "type": destination.Type})
-	}
-	d.Set("destinations", destinations)
-
-	var services []map[string]string
-	for _, service := range dfwRule.Services.DistributedFirewallRuleService {
-		if service.ProtocolName != "" {
-			services = append(services, map[string]string{"protocol": service.ProtocolName, "destination_port": service.DestinationPort, "source_port": service.SourcePort})
+	if dfwRule.Sources != nil {
+		_ = d.Set("source_exclude", dfwRule.Sources.Excluded)
+		var sources []map[string]string
+		for _, source := range dfwRule.Sources.Source {
+			sources = append(sources, map[string]string{"value": source.Value, "type": source.Type})
 		}
+		d.Set("sources", sources)
 	}
-	d.Set("service", services)
+
+	if dfwRule.Destinations != nil {
+		_ = d.Set("destination_exclude", dfwRule.Destinations.Excluded)
+		var destinations []map[string]string
+		for _, destination := range dfwRule.Destinations.Destination {
+			destinations = append(destinations, map[string]string{"value": destination.Value, "type": destination.Type})
+		}
+		d.Set("destinations", destinations)
+	}
+
+	if dfwRule.Services != nil {
+		var services []map[string]string
+		for _, service := range dfwRule.Services.DistributedFirewallRuleService {
+			if service.ProtocolName != "" {
+				services = append(services, map[string]string{"protocol": service.ProtocolName, "destination_port": service.DestinationPort, "source_port": service.SourcePort})
+			}
+		}
+		d.Set("service", services)
+	}
 	return nil
 }
