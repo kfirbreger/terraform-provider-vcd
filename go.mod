@@ -5,8 +5,9 @@ go 1.13
 require (
 	github.com/hashicorp/go-version v1.2.0
 	github.com/hashicorp/terraform v0.12.26
-	github.com/hashicorp/terraform-plugin-sdk v1.8.0
+	github.com/hashicorp/terraform-plugin-sdk v1.14.0
 	github.com/vmware/go-vcloud-director/v2 v2.8.0-alpha.6
 )
 
 replace github.com/vmware/go-vcloud-director/v2 => ../go-vcloud-director
+
